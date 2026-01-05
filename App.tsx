@@ -13,7 +13,7 @@ import ContentList from './components/ContentList';
 import GeminiInsights from './components/GeminiInsights';
 import AccountManagement from './components/AccountManagement';
 import { ViewState, AccountProfile } from './types';
-import { LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -38,7 +38,9 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
+    setLoading(true);
     const q = query(collection(db, 'AKUN'), where('userId', '==', user.uid));
+    
     const unsubProfiles = onSnapshot(q, (snapshot) => {
       const profileList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AccountProfile[];
       setProfiles(profileList);
@@ -55,6 +57,9 @@ const App: React.FC = () => {
         setActiveProfile(null);
       }
       setLoading(false);
+    }, (err) => {
+      console.error("Critical Auth Listener Error:", err);
+      setLoading(false);
     });
 
     return () => unsubProfiles();
@@ -69,8 +74,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-          <p className="text-slate-500 font-medium animate-pulse">Menyiapkan Ruang Kerja...</p>
+          <Loader2 className="h-12 w-12 border-indigo-600 animate-spin" />
+          <p className="text-slate-500 font-medium">Mengamankan Sesi...</p>
         </div>
       </div>
     );
@@ -93,17 +98,17 @@ const App: React.FC = () => {
 
     if (!activeProfile) {
       return (
-        <div className="h-[70vh] flex flex-col items-center justify-center text-center space-y-4">
+        <div className="h-[70vh] flex flex-col items-center justify-center text-center space-y-4 p-6">
           <div className="w-20 h-20 bg-indigo-100 rounded-3xl flex items-center justify-center text-indigo-600">
             <LayoutDashboard className="w-10 h-10" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Belum Ada Akun Terdaftar</h2>
-          <p className="text-slate-500 max-w-sm">Silakan buat akun bisnis pertama Anda di menu "Kelola Akun" untuk mulai mendata.</p>
+          <h2 className="text-2xl font-bold text-slate-900">Akun Bisnis Belum Tersedia</h2>
+          <p className="text-slate-500 max-w-sm">Daftarkan akun bisnis (profil) pertama Anda untuk mulai mengelola data secara terpisah.</p>
           <button 
             onClick={() => setCurrentView('AKUN')}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-lg"
+            className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
           >
-            Kelola Akun
+            Buat Akun Sekarang
           </button>
         </div>
       );
