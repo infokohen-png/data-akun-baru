@@ -13,6 +13,7 @@ import ContentList from './components/ContentList';
 import DailyTarget from './components/DailyTarget';
 import GeminiInsights from './components/GeminiInsights';
 import AccountManagement from './components/AccountManagement';
+import ReportExport from './components/ReportExport';
 import { ViewState, AccountProfile } from './types';
 import { LayoutDashboard, Loader2 } from 'lucide-react';
 
@@ -136,6 +137,7 @@ const App: React.FC = () => {
       case 'PENJUALAN': return <SalesList activeProfileId={activeProfile.id} />;
       case 'KONTEN': return <ContentList activeProfileId={activeProfile.id} />;
       case 'INSIGHTS': return <GeminiInsights activeProfileId={activeProfile.id} />;
+      case 'REPORTS': return <ReportExport activeProfileId={activeProfile.id} activeProfileName={activeProfile.nama} />;
       default: return <Dashboard activeProfileId={activeProfile.id} />;
     }
   };
@@ -152,7 +154,7 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
         toggleTheme={() => setIsDarkMode(!isDarkMode)}
       />
-      <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8">
+      <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 print:p-0 print:bg-white">
         <div className="max-w-7xl mx-auto">
           {renderView()}
         </div>

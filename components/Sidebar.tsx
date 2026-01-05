@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   LayoutDashboard, Store, Package, ShoppingCart, Video, 
   LogOut, Sparkles, UserCircle2, Users, Plus, X, Check, Loader2, Settings, Menu, Sun, Moon,
-  CheckSquare
+  CheckSquare, FileText
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -33,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     { id: 'DASHBOARD', label: 'Ringkasan', icon: LayoutDashboard },
     { id: 'TARGET', label: 'Target Harian', icon: CheckSquare },
+    { id: 'REPORTS', label: 'Laporan', icon: FileText },
     { id: 'TOKO', label: 'Toko', icon: Store },
     { id: 'PRODUK', label: 'Produk', icon: Package },
     { id: 'PENJUALAN', label: 'Penjualan', icon: ShoppingCart },
@@ -76,7 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
       {/* MOBILE HEADER */}
       <div 
-        className={`md:hidden fixed top-0 left-0 right-0 z-40 border-b shadow-sm transition-colors duration-300 ${
+        className={`md:hidden fixed top-0 left-0 right-0 z-40 border-b shadow-sm transition-colors duration-300 print:hidden ${
           isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
         }`}
       >
@@ -103,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* SIDEBAR DESKTOP */}
       <aside className={`
-        fixed inset-y-0 left-0 w-72 z-[60] flex flex-col border-r
+        fixed inset-y-0 left-0 w-72 z-[60] flex flex-col border-r print:hidden
         transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1)
         ${isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'}
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -178,7 +179,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* MOBILE SPACER */}
-      <div className="md:hidden h-14 w-full"></div>
+      <div className="md:hidden h-14 w-full print:hidden"></div>
 
       {/* MODAL SWITCH AKUN */}
       {showSwitchModal && (

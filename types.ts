@@ -65,4 +65,4 @@ export interface ContentTarget {
   tanggalTarget: string; // YYYY-MM-DD
 }
 
-export type ViewState = 'DASHBOARD' | 'TOKO' | 'PRODUK' | 'PENJUALAN' | 'KONTEN' | 'INSIGHTS' | 'AKUN' | 'TARGET';
+export type ViewState = 'DASHBOARD' | 'TOKO' | 'PRODUK' | 'PENJUALAN' | 'KONTEN' | 'INSIGHTS' | 'AKUN' | 'TARGET' | 'REPORTS';

@@ -7,7 +7,8 @@ import {
 import { db, auth } from '../firebase';
 import { Sale, Product, Shop } from '../types';
 import { 
-  Plus, Trash2, Edit3, X, Save, TrendingUp, Search, Loader2, Calendar, ShoppingBag, Store, Package
+  Plus, Trash2, Edit3, X, Save, TrendingUp, Search, Loader2, Calendar, ShoppingBag, Store, Package,
+  Download, Table
 } from 'lucide-react';
 
 interface SalesListProps {
@@ -116,6 +117,34 @@ const SalesList: React.FC<SalesListProps> = ({ activeProfileId }) => {
     return matchesSearch && matchesShop && matchesProd && matchesStart && matchesEnd;
   });
 
+  const handleQuickExport = () => {
+    if (filteredSales.length === 0) return;
+    
+    const csvData = filteredSales.map(s => ({
+      Tanggal: s.tanggal?.toDate ? s.tanggal.toDate().toLocaleDateString('id-ID') : '-',
+      Toko: s.namaToko,
+      Produk: s.namaProduk,
+      Kuantitas: s.jumlah,
+      Omset: s.totalOmset
+    }));
+
+    const headers = Object.keys(csvData[0]);
+    const csvRows = [
+      headers.join(','),
+      ...csvData.map(row => headers.map(h => `"${('' + row[h]).replace(/"/g, '""')}"`).join(','))
+    ];
+
+    const csvContent = "\uFEFF" + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Export_Penjualan_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const totalOmsetAll = filteredSales.reduce((acc, curr) => acc + (curr.totalOmset || 0), 0);
 
   if (loading) return (
@@ -131,9 +160,17 @@ const SalesList: React.FC<SalesListProps> = ({ activeProfileId }) => {
           <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900">Rekap Penjualan</h2>
           <p className="dark:text-slate-400 text-slate-500 text-sm mt-1 font-medium">Histori transaksi akun aktif.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95">
-          <Plus className="w-5 h-5" /> Input Penjualan
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleQuickExport}
+            className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg active:scale-95 text-xs md:text-sm"
+          >
+            <Table className="w-4 h-4" /> Ekspor Excel
+          </button>
+          <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95 text-xs md:text-sm">
+            <Plus className="w-5 h-5" /> Input Penjualan
+          </button>
+        </div>
       </div>
 
       <div className="dark:bg-slate-900 bg-white p-4 rounded-2xl border dark:border-slate-800 border-slate-200 shadow-sm space-y-4">

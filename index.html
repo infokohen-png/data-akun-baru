@@ -29,6 +29,16 @@
       -ms-overflow-style: none;  /* IE and Edge */
       scrollbar-width: none;  /* Firefox */
     }
+
+    /* Print Styles */
+    @media print {
+      body { background: white !important; }
+      #root { margin: 0; padding: 0; }
+      .print-hidden { display: none !important; }
+      @page {
+        margin: 1.5cm;
+      }
+    }
   </style>
 <script type="importmap">
 {
