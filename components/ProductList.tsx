@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc,
   query, where
@@ -66,24 +66,23 @@ const ProductList: React.FC<ProductListProps> = ({ activeProfileId }) => {
   if (loading) return <div className="h-[60vh] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 md:mt-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-black dark:text-white">Katalog Produk</h2>
-        <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg"><Plus className="w-5 h-5" /> Tambah Produk</button>
+        <button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }} className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"><Plus className="w-5 h-5" /> Tambah Produk</button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         {products.filter(p => p.namaProduk.toLowerCase().includes(searchTerm.toLowerCase())).map(product => (
           <div key={product.id} className="dark:bg-slate-900 bg-white rounded-2xl border dark:border-slate-800 p-3 flex flex-col group">
             <div className="aspect-square bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden mb-3">
               {product.fotoProduk ? <img src={product.fotoProduk} className="w-full h-full object-cover" /> : <ImageIcon className="w-full h-full p-4 text-slate-300" />}
             </div>
-            <h3 className="text-xs font-bold dark:text-white truncate">{product.namaProduk}</h3>
-            <p className="text-[10px] text-indigo-500 font-black mt-1 uppercase">{product.namaToko}</p>
+            <h3 className="text-[10px] sm:text-xs font-bold dark:text-white truncate">{product.namaProduk}</h3>
+            <p className="text-[8px] sm:text-[10px] text-indigo-500 font-black mt-1 uppercase">{product.namaToko}</p>
             <div className="mt-auto pt-3 flex justify-between items-center border-t dark:border-slate-800">
-               <span className="text-[11px] font-black dark:text-white">Rp {product.hargaJual.toLocaleString('id-ID')}</span>
+               <span className="text-[9px] sm:text-[11px] font-black dark:text-white">Rp {product.hargaJual.toLocaleString('id-ID')}</span>
                <div className="flex gap-1">
-                  {/* Fixed type error: Explicitly mapping Product fields and providing default for optional linkProduk */}
                   <button onClick={() => { setEditingProduct(product); setFormData({ namaProduk: product.namaProduk, kategori: product.kategori, namaTokoId: product.namaTokoId, linkProduk: product.linkProduk || '', hargaJual: product.hargaJual }); setPreviewUrl(product.fotoProduk || ''); setIsModalOpen(true); }} className="p-1.5 text-indigo-500"><Edit3 className="w-3.5 h-3.5" /></button>
                   <button onClick={async () => { if(confirm('Hapus?')) await deleteDoc(doc(db, 'NAMA PRODUK', product.id)); }} className="p-1.5 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
                </div>
@@ -93,7 +92,7 @@ const ProductList: React.FC<ProductListProps> = ({ activeProfileId }) => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-3">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={closeModal}></div>
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-8 relative">
              <h3 className="text-xl font-black mb-6 dark:text-white">Data Produk</h3>

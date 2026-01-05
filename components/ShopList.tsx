@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { Shop } from '../types';
-import { Plus, Search, MapPin, X, Store, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, Search, MapPin, Store, ExternalLink, Loader2 } from 'lucide-react';
 
 interface ShopListProps {
   activeProfileId: string;
@@ -58,10 +58,10 @@ const ShopList: React.FC<ShopListProps> = ({ activeProfileId }) => {
   if (loading) return <div className="h-[60vh] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" /></div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 md:mt-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-black dark:text-white">Katalog Toko</h2>
-        <button onClick={() => { setEditingShop(null); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg active:scale-95 transition-all">
+        <button onClick={() => { setEditingShop(null); setIsModalOpen(true); }} className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
           <Plus className="w-5 h-5" /> Tambah Toko
         </button>
       </div>
@@ -90,7 +90,7 @@ const ShopList: React.FC<ShopListProps> = ({ activeProfileId }) => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl p-8 relative">
              <h3 className="text-xl font-black mb-6 dark:text-white">{editingShop ? 'Edit Toko' : 'Toko Baru'}</h3>

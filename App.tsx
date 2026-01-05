@@ -77,7 +77,6 @@ const App: React.FC = () => {
       else if (appMode === 'TALENT') {
         if (profileList.length > 0) {
           setActiveProfile(profileList[0]);
-          // Default view for talent mode is analysis
           setCurrentView('TALENT_DASHBOARD');
         } else {
           const createDefaultTalent = async () => {
@@ -201,7 +200,7 @@ const App: React.FC = () => {
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
       />
-      <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8">
+      <main className="flex-1 overflow-y-auto pt-20 pb-10 px-4 md:pt-10 md:px-8">
         <div className="max-w-7xl mx-auto">
           {renderView()}
         </div>
