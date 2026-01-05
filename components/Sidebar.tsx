@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-indigo-200 shadow-sm">
               <Store className="text-white w-5 h-5" />
             </div>
-            <span className={`font-black tracking-tighter text-lg ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>ShopHub</span>
+            <span className={`font-black tracking-tighter text-lg ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>PT BMS</span>
           </div>
           <div className="flex items-center gap-1">
             <button 
@@ -119,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center">
                 <Store className="text-white w-5 h-5" />
               </div>
-              <h1 className={`text-xl font-bold tracking-tight ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>ShopHub</h1>
+              <h1 className={`text-xl font-bold tracking-tight ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>PT BMS</h1>
             </div>
             <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 hover:bg-slate-800 rounded-xl transition-colors">
               <X className={`w-6 h-6 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`} />
@@ -190,7 +190,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* MODAL SWITCH AKUN */}
       {showSwitchModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowSwitchModal(false)}></div>
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowSwitchModal(false)}></div>
           <div className={`w-full max-w-sm rounded-3xl shadow-2xl relative z-10 overflow-hidden animate-in zoom-in-95 duration-200 ${isDarkMode ? 'bg-slate-900' : 'bg-white'}`}>
             <div className={`px-6 py-4 border-b flex items-center justify-between ${isDarkMode ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50/50 border-slate-100'}`}>
               <h3 className={`font-black uppercase text-[10px] tracking-widest ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>Pindah Akun</h3>
