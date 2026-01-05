@@ -15,6 +15,11 @@
       -webkit-backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.18);
     }
+    /* Custom scrollbar for better aesthetics */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
   </style>
 <script type="importmap">
 {
@@ -32,5 +37,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
   <div id="root"></div>
+  <!-- Entry point aplikasi -->
+  <script type="module" src="./index.tsx"></script>
 </body>
 </html>

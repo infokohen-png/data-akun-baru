@@ -51,20 +51,17 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
   const [selectedShopId, setSelectedShopId] = useState('');
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user || !activeProfileId) return;
+    if (!activeProfileId) return;
 
     setLoading(true);
-    
     const qToko = query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId));
     const qProduk = query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId));
     const qKonten = query(collection(db, 'KONTEN'), where('profileId', '==', activeProfileId));
     const qSales = query(collection(db, 'PENJUALAN'), where('profileId', '==', activeProfileId));
 
     const unsubs: (() => void)[] = [];
-
     const handleError = (error: any) => {
-      console.error("Firestore Error:", error);
+      console.error("Dashboard Listener Error:", error);
       setLoading(false);
     };
 
@@ -155,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
   if (loading) return (
     <div className="h-[60vh] flex flex-col items-center justify-center">
       <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-      <p className="mt-4 text-slate-500 font-medium">Sinkronisasi Data...</p>
+      <p className="mt-4 text-slate-500 font-medium">Memuat Data Bisnis...</p>
     </div>
   );
 
@@ -163,18 +160,18 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Business Intel</h1>
-          <p className="text-slate-500 mt-1 font-medium italic">Wawasan real-time bisnis Anda.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Business Intelligence</h1>
+          <p className="text-slate-500 mt-1 font-medium italic">Data performa akun aktif.</p>
         </div>
         <div className="flex items-center gap-2">
            {(startDate || endDate || selectedShopId) && (
              <button onClick={() => { setStartDate(''); setEndDate(''); setSelectedShopId(''); }} className="text-xs font-bold text-red-500 flex items-center gap-1 hover:underline mr-2">
-               <X className="w-3 h-3" /> Reset Filter
+               <X className="w-3 h-3" /> Bersihkan Filter
              </button>
            )}
            <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Connected</span>
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Online</span>
           </div>
         </div>
       </header>
@@ -193,8 +190,8 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Total Omset', value: analysis.globalStats.totalOmset, icon: Coins, color: 'text-emerald-600', bg: 'bg-emerald-50', prefix: 'Rp ' },
-          { label: 'Produk Aktif', value: analysis.globalStats.totalProduk, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Konten Akun', value: analysis.globalStats.totalKonten, icon: Video, color: 'text-pink-600', bg: 'bg-pink-50' },
+          { label: 'Produk Terdaftar', value: analysis.globalStats.totalProduk, icon: Package, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Konten Publik', value: analysis.globalStats.totalKonten, icon: Video, color: 'text-pink-600', bg: 'bg-pink-50' },
           { label: 'Unit Terjual', value: analysis.globalStats.totalUnitTerjual, icon: ShoppingCart, color: 'text-amber-600', bg: 'bg-amber-50' },
         ].map((item, idx) => (
           <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
@@ -209,9 +206,9 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="text-xl font-bold text-slate-900 px-2">Kinerja Toko</h3>
+          <h3 className="text-xl font-bold text-slate-900 px-2">Performa Toko</h3>
           <div className="space-y-4">
-            {analysis.shopStats.map((shop, idx) => {
+            {analysis.shopStats.length > 0 ? analysis.shopStats.map((shop, idx) => {
               const isExpanded = expandedShopId === shop.id;
               return (
                 <div key={shop.id} className={`bg-white rounded-3xl border ${isExpanded ? 'border-indigo-200 shadow-lg' : 'border-slate-100 shadow-sm'} overflow-hidden transition-all duration-300`}>
@@ -220,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${isExpanded ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{idx + 1}</div>
                       <div>
                         <h4 className="text-lg font-bold text-slate-900">{shop.nama}</h4>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">{shop.produkCount} Produk • {shop.salesCount} Terjual</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-0.5">{shop.produkCount} Produk • {shop.salesCount} Unit Terjual</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-6">
@@ -230,7 +227,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
                   </div>
                   {isExpanded && (
                     <div className="border-t border-slate-100 bg-slate-50/30 p-4 sm:p-6 space-y-3 animate-in slide-in-from-top-2">
-                      {shop.details.map((product) => (
+                      {shop.details.length > 0 ? shop.details.map((product) => (
                         <div key={product.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
                           <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
                             {product.foto ? <img src={product.foto} className="w-full h-full object-cover" /> : <ImageIcon className="w-full h-full p-3 text-slate-300" />}
@@ -241,17 +238,17 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
                           </div>
                           <p className="text-sm font-black text-emerald-600">Rp {product.omset.toLocaleString('id-ID')}</p>
                         </div>
-                      ))}
+                      )) : <p className="text-center text-slate-400 text-xs py-4">Belum ada produk untuk toko ini.</p>}
                     </div>
                   )}
                 </div>
               );
-            })}
+            }) : <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 text-slate-400 italic">Belum ada data toko untuk dianalisis.</div>}
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm h-fit">
-          <h3 className="text-lg font-bold text-slate-900 mb-6 text-center uppercase tracking-widest text-xs">Distribusi Omset</h3>
+          <h3 className="text-lg font-bold text-slate-900 mb-6 text-center uppercase tracking-widest text-[10px] text-slate-400">Distribusi Pendapatan</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analysis.shopStats.slice(0, 5)}>
