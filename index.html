@@ -20,6 +20,15 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+    
+    /* Hide scrollbar for mobile tabs */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
   </style>
 <script type="importmap">
 {
@@ -35,7 +44,7 @@
 }
 </script>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-50 text-slate-900 transition-colors duration-300">
   <div id="root"></div>
   <!-- Entry point aplikasi -->
   <script type="module" src="./index.tsx"></script>
