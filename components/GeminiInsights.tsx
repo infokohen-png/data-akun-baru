@@ -63,20 +63,8 @@ const GeminiInsights: React.FC<GeminiInsightsProps> = ({ activeProfileId }) => {
         jumlahPostingan: contents.length,
       };
 
-      // Proteksi akses process.env untuk Vercel
-      let apiKey = '';
-      try {
-        // Cek browser global first, then fallback to process.env if available
-        apiKey = (window as any).process?.env?.API_KEY || (typeof process !== 'undefined' ? process.env.API_KEY : '');
-      } catch (e) {
-        console.warn("API_KEY access warning:", e);
-      }
-      
-      if (!apiKey) {
-        throw new Error("Gemini API Key tidak terdeteksi. Pastikan API_KEY sudah diatur di Environment Variables.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      // Correctly initialize GoogleGenAI using process.env.API_KEY as per the @google/genai coding guidelines.
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Analisis data bisnis (${analysisData.filterContext}) periode (${analysisData.periode}):
@@ -90,6 +78,7 @@ const GeminiInsights: React.FC<GeminiInsightsProps> = ({ activeProfileId }) => {
         }
       });
 
+      // The response.text property directly returns the extracted string output.
       setInsight(response.text || "AI tidak memberikan respons.");
     } catch (err: any) {
       console.error("AI Insight Generation Error:", err);

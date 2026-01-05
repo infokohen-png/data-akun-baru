@@ -119,10 +119,6 @@ const App: React.FC = () => {
     setAppMode(null);
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
   if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -134,7 +130,7 @@ const App: React.FC = () => {
   if (!user) return <AuthScreen />;
 
   if (!appMode) {
-    return <AppPortal onSelect={setAppMode} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
+    return <AppPortal onSelect={setAppMode} isDarkMode={isDarkMode} />;
   }
 
   if (!activeProfile && appMode === 'BUSINESS') {
@@ -154,7 +150,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 gap-4 text-center p-6">
         <Loader2 className="h-12 w-12 text-indigo-600 animate-spin" />
         <div>
-          <h2 className="text-white font-bold text-xl">Menyiapkan Workspace Talent...</h2>
+          <h2 className="text-white font-bold text-xl">Menyiapkan Workspace Manajemen Talent...</h2>
           <p className="text-slate-400 text-sm mt-1">Hanya butuh waktu sekejap.</p>
         </div>
       </div>
@@ -199,7 +195,7 @@ const App: React.FC = () => {
         appMode={appMode}
         onExitProject={handleExitProject}
         isDarkMode={isDarkMode}
-        toggleTheme={toggleTheme}
+        toggleTheme={() => setIsDarkMode(!isDarkMode)}
       />
       <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8">
         <div className="max-w-7xl mx-auto">
