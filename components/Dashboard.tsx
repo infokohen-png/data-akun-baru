@@ -159,7 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ activeProfileId }) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl md:text-3xl font-black dark:text-slate-100 text-slate-900 tracking-tight">Business Intel</h1>
+        <h1 className="text-2xl md:text-3xl font-black dark:text-slate-100 text-slate-900 tracking-tight">Data keseluruhan</h1>
         <div className="flex items-center justify-between">
           <p className="dark:text-slate-400 text-slate-500 text-sm font-medium italic">Data performa akun aktif.</p>
           <div className="bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 flex items-center gap-2 flex-shrink-0">

@@ -6,7 +6,8 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '../firebase';
-import { Store, Mail, Lock, UserPlus, LogIn, ArrowLeft, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
+// Add Loader2 to the imports from lucide-react
+import { Store, Mail, Lock, UserPlus, LogIn, ArrowLeft, Send, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 type AuthMode = 'LOGIN' | 'SIGNUP' | 'FORGOT_PASSWORD';
 
@@ -45,36 +46,40 @@ const AuthScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-        <div className="p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-100">
-              <Store className="text-white w-8 h-8" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800">
-              {mode === 'LOGIN' && 'Selamat Datang'}
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 font-sans relative overflow-hidden">
+      {/* Decorative background elements consistent with the logo's gold accent */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-amber-500/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2"></div>
+      <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-indigo-500/5 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2"></div>
+
+      <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-slate-800 overflow-hidden relative z-10">
+        <div className="p-8 md:p-10">
+          <div className="flex flex-col items-center mb-10">
+            <h2 className="text-4xl font-black text-amber-500 tracking-tighter mb-2">
+              PT BMS
+            </h2>
+            <h3 className="text-xl font-bold text-white tracking-tight">
+              {mode === 'LOGIN' && 'Manajemen Data'}
               {mode === 'SIGNUP' && 'Daftar Akun'}
               {mode === 'FORGOT_PASSWORD' && 'Lupa Sandi?'}
-            </h2>
-            <p className="text-slate-500 mt-2 text-center text-sm">
-              {mode === 'LOGIN' && 'Masuk untuk mengelola bisnis Anda'}
-              {mode === 'SIGNUP' && 'Mulai kelola data toko Anda hari ini'}
+            </h3>
+            <p className="text-slate-400 mt-2 text-center text-sm font-medium">
+              {mode === 'LOGIN' && 'Masuk ke Dashboard Strategis'}
+              {mode === 'SIGNUP' && 'Mulai kelola bisnis Anda sekarang'}
               {mode === 'FORGOT_PASSWORD' && 'Masukkan email untuk reset kata sandi'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email</label>
+              <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Alamat Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <input 
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  placeholder="email@anda.com"
+                  className="w-full pl-12 pr-5 py-4 bg-slate-800/50 border border-slate-700 rounded-2xl focus:ring-2 focus:ring-amber-500 outline-none transition-all text-white font-medium"
+                  placeholder="name@company.com"
                   required
                 />
               </div>
@@ -82,25 +87,25 @@ const AuthScreen: React.FC = () => {
 
             {mode !== 'FORGOT_PASSWORD' && (
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Kata Sandi</label>
+                <div className="flex justify-between items-center mb-2 ml-1">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Kata Sandi</label>
                   {mode === 'LOGIN' && (
                     <button 
                       type="button"
                       onClick={() => setMode('FORGOT_PASSWORD')}
-                      className="text-xs text-indigo-600 font-semibold hover:underline"
+                      className="text-[10px] text-amber-500 font-black uppercase tracking-widest hover:underline"
                     >
-                      Lupa Sandi?
+                      Lupa?
                     </button>
                   )}
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                   <input 
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full pl-12 pr-5 py-4 bg-slate-800/50 border border-slate-700 rounded-2xl focus:ring-2 focus:ring-amber-500 outline-none transition-all text-white font-medium"
                     placeholder="••••••••"
                     required
                   />
@@ -109,15 +114,15 @@ const AuthScreen: React.FC = () => {
             )}
 
             {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 flex items-center gap-2 animate-pulse">
-                <AlertCircle className="w-4 h-4" />
+              <div className="p-4 bg-red-500/10 text-red-400 text-xs font-bold rounded-2xl border border-red-500/20 flex items-center gap-3 animate-shake">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="p-3 bg-emerald-50 text-emerald-600 text-sm rounded-lg border border-emerald-100 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="p-4 bg-emerald-500/10 text-emerald-400 text-xs font-bold rounded-2xl border border-emerald-500/20 flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                 {message}
               </div>
             )}
@@ -125,32 +130,32 @@ const AuthScreen: React.FC = () => {
             <button 
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-lg shadow-indigo-100"
+              className="w-full bg-amber-500 text-slate-950 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-amber-400 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-amber-500/10"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  {mode === 'LOGIN' && <><LogIn className="w-5 h-5" /> Masuk Sekarang</>}
-                  {mode === 'SIGNUP' && <><UserPlus className="w-5 h-5" /> Daftar Akun</>}
-                  {mode === 'FORGOT_PASSWORD' && <><Send className="w-5 h-5" /> Kirim Instruksi</>}
+                  {mode === 'LOGIN' && <><LogIn className="w-5 h-5" /> LOGIN DASHBOARD</>}
+                  {mode === 'SIGNUP' && <><UserPlus className="w-5 h-5" /> BUAT AKUN</>}
+                  {mode === 'FORGOT_PASSWORD' && <><Send className="w-5 h-5" /> KIRIM INSTRUKSI</>}
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+          <div className="mt-10 pt-6 border-t border-slate-800 text-center">
             {mode === 'LOGIN' ? (
-              <p className="text-sm text-slate-500">
-                Belum punya akun?{' '}
-                <button onClick={() => setMode('SIGNUP')} className="text-indigo-600 font-bold hover:underline">Daftar Gratis</button>
+              <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
+                Belum terdaftar?{' '}
+                <button onClick={() => setMode('SIGNUP')} className="text-amber-500 hover:underline">Daftar Sekarang</button>
               </p>
             ) : (
               <button 
                 onClick={() => setMode('LOGIN')} 
-                className="text-sm text-slate-600 font-bold hover:text-indigo-600 flex items-center justify-center gap-2 mx-auto"
+                className="text-xs text-slate-400 font-black uppercase tracking-widest flex items-center justify-center gap-2 mx-auto hover:text-white transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" /> Kembali ke Masuk
+                <ArrowLeft className="w-4 h-4" /> Kembali Ke Login
               </button>
             )}
           </div>
