@@ -55,4 +55,14 @@ export interface ContentRecord {
   tanggal: any;
 }
 
-export type ViewState = 'DASHBOARD' | 'TOKO' | 'PRODUK' | 'PENJUALAN' | 'KONTEN' | 'INSIGHTS' | 'AKUN';
+export interface ContentTarget {
+  id: string;
+  profileId: string;
+  userId: string;
+  judul: string;
+  isDone: boolean;
+  createdAt: any;
+  tanggalTarget: string; // YYYY-MM-DD
+}
+
+export type ViewState = 'DASHBOARD' | 'TOKO' | 'PRODUK' | 'PENJUALAN' | 'KONTEN' | 'INSIGHTS' | 'AKUN' | 'TARGET';

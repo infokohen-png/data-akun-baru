@@ -10,6 +10,7 @@ import ShopList from './components/ShopList';
 import ProductList from './components/ProductList';
 import SalesList from './components/SalesList';
 import ContentList from './components/ContentList';
+import DailyTarget from './components/DailyTarget';
 import GeminiInsights from './components/GeminiInsights';
 import AccountManagement from './components/AccountManagement';
 import { ViewState, AccountProfile } from './types';
@@ -129,6 +130,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case 'DASHBOARD': return <Dashboard activeProfileId={activeProfile.id} />;
+      case 'TARGET': return <DailyTarget activeProfileId={activeProfile.id} />;
       case 'TOKO': return <ShopList activeProfileId={activeProfile.id} />;
       case 'PRODUK': return <ProductList activeProfileId={activeProfile.id} />;
       case 'PENJUALAN': return <SalesList activeProfileId={activeProfile.id} />;

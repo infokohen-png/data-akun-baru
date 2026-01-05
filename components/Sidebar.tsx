@@ -2,7 +2,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   LayoutDashboard, Store, Package, ShoppingCart, Video, 
-  LogOut, Sparkles, UserCircle2, Users, Plus, X, Check, Loader2, Settings, Menu, Sun, Moon
+  LogOut, Sparkles, UserCircle2, Users, Plus, X, Check, Loader2, Settings, Menu, Sun, Moon,
+  CheckSquare
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -31,6 +32,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   
   const menuItems = [
     { id: 'DASHBOARD', label: 'Ringkasan', icon: LayoutDashboard },
+    { id: 'TARGET', label: 'Target Harian', icon: CheckSquare },
     { id: 'TOKO', label: 'Toko', icon: Store },
     { id: 'PRODUK', label: 'Produk', icon: Package },
     { id: 'PENJUALAN', label: 'Penjualan', icon: ShoppingCart },
