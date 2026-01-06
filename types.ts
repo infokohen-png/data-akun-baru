@@ -6,31 +6,37 @@ export interface AccountProfile {
   userId: string;
   nama: string;
   createdAt: any;
-  appMode: AppMode; // Membedakan jenis proyek
+  appMode: AppMode;
+}
+
+export interface UserPermission {
+  email: string;
+  allowedModes: AppMode[];
+  role: 'ADMIN' | 'USER' | 'TALENT_STAFF' | 'BUSINESS_STAFF';
 }
 
 export interface Shop {
   id: string;
-  userId: string;
-  profileId: string;
   nama: string;
   linkToko: string;
   asalToko: string;
   awalPromosi: string;
-  createdAt: any;
+  userId: string;
+  profileId: string;
+  createdAt?: any;
 }
 
 export interface Product {
   id: string;
-  userId: string;
-  profileId: string;
-  namaTokoId: string;
-  namaToko: string;
   namaProduk: string;
   kategori: string;
+  namaTokoId: string;
+  namaToko: string;
+  linkProduk?: string;
   hargaJual: number;
   fotoProduk?: string;
-  linkProduk?: string;
+  userId: string;
+  profileId: string;
 }
 
 export interface Sale {
@@ -44,6 +50,7 @@ export interface Sale {
   jumlah: number;
   totalOmset: number;
   tanggal: any;
+  createdAt?: any;
 }
 
 export interface ContentRecord {
@@ -60,39 +67,63 @@ export interface ContentRecord {
 
 export interface ContentTarget {
   id: string;
-  profileId: string;
   userId: string;
+  profileId: string;
   judul: string;
   isDone: boolean;
-  createdAt: any;
   tanggalTarget: string;
+  createdAt: any;
 }
 
 export interface Talent {
   id: string;
   nama: string;
-  namaAkun: string[]; // Berubah menjadi array untuk mendukung multiple account
+  namaAkun: string[];
   kontak: string;
   status: 'AKTIF' | 'NONAKTIF';
   profileId: string;
   projectId: string;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
-export interface TalentReport {
+export interface Employee {
   id: string;
-  talentId: string;
-  namaTalent: string;
-  namaAkunTalent: string;
-  judulKonten: string;
-  namaProduk?: string; 
-  jumlahProduk?: number; 
-  tipeKonten: 'VIDEO' | 'LIVE' | 'PHOTO';
-  statusKonten: 'PROSES' | 'REVISI' | 'POSTED';
-  jumlahPostingan: number;
-  linkPostingan: string[];
+  nama: string;
+  nomorHp: string;
+  tanggalMasuk: string;
+  posisi: string;
+  lokasiKantor: string;
+  status: 'AKTIF' | 'RESIGN';
+  profileId: string;
+}
+
+export interface Attendance {
+  id: string;
+  employeeId: string;
+  status: 'HADIR' | 'SAKIT' | 'ALPA' | 'IZIN';
+  keterangan: string;
   tanggal: any;
   profileId: string;
-  projectId: string;
+  namaKaryawan: string;
+  jabatan: string;
+  foto?: string;
+  lokasi?: { latitude: number, longitude: number } | null;
+}
+
+export interface OfficeLocation {
+  id: string;
+  namaKantor: string;
+  alamat: string;
+  profileId: string;
+  createdAt?: any;
+}
+
+export interface Holiday {
+  id: string;
+  tanggal: string;
+  keterangan: string;
+  profileId: string;
 }
 
 export type ViewState = 
@@ -109,4 +140,8 @@ export type ViewState =
   | 'TALENT_CONTENT'
   | 'TALENT_PRODUCTION'
   | 'TALENT_KPI'
-  | 'TALENT_DASHBOARD';
+  | 'TALENT_DASHBOARD'
+  | 'KARYAWAN_DASHBOARD'
+  | 'KARYAWAN_LIST'
+  | 'KARYAWAN_ABSENSI'
+  | 'KARYAWAN_LOKASI';

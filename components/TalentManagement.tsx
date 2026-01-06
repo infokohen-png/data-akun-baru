@@ -1,13 +1,14 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, updateDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { Talent, ViewState } from '../types';
 import { 
   Plus, Trash2, Edit3, X, 
   Loader2, Video, 
   UserCircle, Calendar, Hash,
-  ShoppingBag, Layers, Clock, Target, TrendingUp, Users, CheckCircle, BarChart3, Sparkles, Link as LinkIcon, ExternalLink, Phone, PlusCircle, MinusCircle, Award
+  ShoppingBag, Layers, Clock, Target, TrendingUp, Users, CheckCircle, BarChart3, Sparkles, Link as LinkIcon, ExternalLink, Phone, PlusCircle, MinusCircle, Award, Camera, Image as ImageIcon
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
@@ -50,6 +51,15 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Helper pemformatan titik
+  const formatDots = (val: number | string) => {
+    if (!val && val !== 0) return '';
+    const stringVal = val.toString().replace(/\D/g, '');
+    return stringVal.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const parseDots = (val: string) => parseInt(val.replace(/\./g, ''), 10) || 0;
+
   // Form States
   const [talentForm, setTalentForm] = useState({ 
     nama: '', 
@@ -65,7 +75,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
     targetJumlah: 30 
   });
   
-  // Postingan Form State
   const [reportForm, setReportForm] = useState({
     talentId: '',
     namaTalent: '',
@@ -73,8 +82,12 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
     namaProduk: '',
     jumlahPostingan: 1,
     linkPostingan: [''],
+    fotoProduk: '',
     tanggal: new Date().toISOString().split('T')[0]
   });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
 
   const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
   const years = [new Date().getFullYear().toString(), (new Date().getFullYear() + 1).toString()];
@@ -118,7 +131,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
       return { name: t.nama, posted: talentPosted };
     }).sort((a, b) => b.posted - a.posted);
 
-    // Individual KPI Stats for current month
     const talentKPIAchievements = talents.map(talent => {
       const target = kpiList.find(k => 
         k.talentId === talent.id && 
@@ -134,7 +146,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
         return p.talentId === talent.id && m === currentMonth && y === currentYear;
       }).reduce((acc, curr) => acc + (Number(curr.jumlahPostingan) || 0), 0);
 
-      // Sesuai instruksi: Jika tercapai maka 100%
       const rawPercent = target > 0 ? (actual / target) * 100 : (actual > 0 ? 100 : 0);
       const displayPercent = Math.min(Math.round(rawPercent), 100);
 
@@ -198,9 +209,17 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
     setIsSaving(true);
     const selectedTalent = talents.find(t => t.id === reportForm.talentId);
     try {
+      let finalImageUrl = reportForm.fotoProduk;
+      if (selectedFile) {
+        const storageRef = ref(storage, `talent_postingan/${activeProjectId}/${Date.now()}_${selectedFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, selectedFile);
+        finalImageUrl = await getDownloadURL(uploadResult.ref);
+      }
+
       const payload = {
         ...reportForm,
         namaTalent: selectedTalent?.nama || '',
+        fotoProduk: finalImageUrl,
         tanggal: Timestamp.fromDate(new Date(reportForm.tanggal)),
         projectId: activeProjectId,
         profileId: activeProfileId
@@ -216,7 +235,9 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
     setTalentForm({ nama: '', namaAkun: [''], kontak: '', status: 'AKTIF' });
     setContentForm({ talentId: '', namaProduk: '', jumlahKonten: 1, tanggal: new Date().toISOString().split('T')[0] });
     setKpiForm({ talentId: '', bulan: new Date().toLocaleString('id-ID', { month: 'long' }), tahun: new Date().getFullYear().toString(), targetJumlah: 30 });
-    setReportForm({ talentId: '', namaTalent: '', namaAkunTalent: '', namaProduk: '', jumlahPostingan: 1, linkPostingan: [''], tanggal: new Date().toISOString().split('T')[0] });
+    setReportForm({ talentId: '', namaTalent: '', namaAkunTalent: '', namaProduk: '', jumlahPostingan: 1, linkPostingan: [''], fotoProduk: '', tanggal: new Date().toISOString().split('T')[0] });
+    setSelectedFile(null);
+    setPreviewUrl('');
   };
 
   const updateLinkInputs = (count: number) => {
@@ -248,11 +269,18 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
     setTalentForm({ ...talentForm, namaAkun: newAccounts });
   };
 
-  // Mendapatkan daftar akun dari talent yang dipilih untuk dropdown di modul Postingan
   const selectedTalentAccounts = useMemo(() => {
     const talent = talents.find(t => t.id === reportForm.talentId);
     return talent?.namaAkun || [];
   }, [reportForm.talentId, talents]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
 
   if (loading) return <div className="h-[60vh] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600 w-10 h-10" /></div>;
 
@@ -284,7 +312,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-           {/* Performa KPI Per Talent */}
            <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border dark:border-slate-800 shadow-sm">
               <div className="flex items-center justify-between mb-8">
                  <h3 className="text-lg font-black dark:text-white flex items-center gap-2">
@@ -317,9 +344,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                     </div>
                   </div>
                 ))}
-                {stats.talentKPIAchievements.length === 0 && (
-                  <p className="text-center py-10 text-slate-400 text-sm font-bold italic">Belum ada data KPI untuk bulan ini.</p>
-                )}
               </div>
            </div>
 
@@ -331,15 +355,6 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                  <p className="text-indigo-100 text-sm font-medium leading-relaxed opacity-80">
                    {stats.completionRate >= 80 ? 'Performa tim sangat memuaskan! Pertahankan ritme kerja kreatif Anda.' : 'Perlu dorongan lebih untuk mencapai target harian. Evaluasi kendala talent segera.'}
                  </p>
-              </div>
-              <div className="mt-8 z-10">
-                <div className="h-40">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stats.chartData.slice(0, 3)}>
-                       <Bar dataKey="posted" fill="rgba(255,255,255,0.3)" radius={[4, 4, 4, 4]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
               </div>
               <button onClick={() => setView('TALENT_REPORTS')} className="mt-6 bg-white/20 backdrop-blur-md py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-white hover:text-indigo-600 transition-all z-10">LIHAT POSTINGAN</button>
            </div>
@@ -378,7 +393,7 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                </div>
                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border dark:border-slate-700/50 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-500">Target Bulanan</span>
-                  <span className="text-xl font-black text-indigo-600">{k.targetJumlah} Konten</span>
+                  <span className="text-xl font-black text-indigo-600">{formatDots(k.targetJumlah)} Konten</span>
                </div>
             </div>
           ))}
@@ -413,9 +428,9 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Target Konten / Bulan</label>
-                    <input type="number" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={kpiForm.targetJumlah} onChange={e => setKpiForm({...kpiForm, targetJumlah: parseInt(e.target.value) || 0})} />
+                    <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={formatDots(kpiForm.targetJumlah)} onChange={e => setKpiForm({...kpiForm, targetJumlah: parseDots(e.target.value)})} />
                   </div>
-                  <button type="submit" disabled={isSaving} className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-sm tracking-[0.2em] shadow-xl active:scale-95 transition-all mt-4 uppercase">
+                  <button type="submit" disabled={isSaving} className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black text-sm tracking-[0.2em] shadow-xl mt-4 uppercase active:scale-95 transition-all">
                     {isSaving ? <Loader2 className="animate-spin w-5 h-5 mx-auto" /> : 'Simpan KPI'}
                   </button>
                </form>
@@ -556,7 +571,7 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                   <div className="min-w-0 flex-1">
                      <p className="text-sm font-black dark:text-white truncate mb-1 leading-none">{item.namaProduk}</p>
                      <p className="text-[10px] text-amber-600 font-bold uppercase truncate">
-                       {item.namaTalent} <span className="text-slate-300 dark:text-slate-700 mx-1">•</span> Qty: {item.jumlahKonten}
+                       {item.namaTalent} <span className="text-slate-300 dark:text-slate-700 mx-1">•</span> Qty: {formatDots(item.jumlahKonten)}
                      </p>
                   </div>
                </div>
@@ -590,7 +605,7 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                    </div>
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Jumlah Konten</label>
-                     <input type="number" min="1" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={contentForm.jumlahKonten} onChange={e => setContentForm({...contentForm, jumlahKonten: parseInt(e.target.value) || 1})} />
+                     <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={formatDots(contentForm.jumlahKonten)} onChange={e => setContentForm({...contentForm, jumlahKonten: parseDots(e.target.value)})} />
                    </div>
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Tanggal</label>
@@ -641,14 +656,22 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                         namaProduk: p.namaProduk, 
                         jumlahPostingan: p.jumlahPostingan, 
                         linkPostingan: p.linkPostingan, 
+                        fotoProduk: p.fotoProduk || '',
                         tanggal: p.tanggal?.toDate?.().toISOString().split('T')[0] || '' 
                       }); 
+                      setPreviewUrl(p.fotoProduk || '');
                       setIsModalOpen(true); 
                     }} className="p-2 text-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg"><Edit3 className="w-4 h-4" /></button>
                     <button onClick={async () => { if(confirm('Hapus postingan ini?')) await deleteDoc(doc(db, 'JUMLAH POSTINGAN', p.id)); }} className="p-2 text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                   </div>
                </div>
                
+               {p.fotoProduk && (
+                 <div className="aspect-video w-full rounded-2xl overflow-hidden mb-6 border-2 dark:border-slate-800 shadow-sm">
+                   <img src={p.fotoProduk} className="w-full h-full object-cover" alt="Produk" />
+                 </div>
+               )}
+
                <div className="flex items-center gap-4 mb-6">
                   <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
                     <Video className="w-7 h-7" />
@@ -662,38 +685,44 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs font-bold text-slate-400">
                     <span className="uppercase">Jumlah Postingan</span>
-                    <span className="text-slate-900 dark:text-white font-black">{p.jumlahPostingan} Unit</span>
-                  </div>
-                  <div className="space-y-1.5 pt-2 border-t dark:border-slate-800">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Link Postingan:</p>
-                    {p.linkPostingan?.map((link: string, idx: number) => (
-                      <a key={idx} href={link} target="_blank" rel="noreferrer" className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border dark:border-slate-700 text-[10px] text-indigo-600 font-bold hover:bg-indigo-600 hover:text-white transition-all truncate">
-                        Link {idx + 1} <ExternalLink className="w-3 h-3" />
-                      </a>
-                    ))}
+                    <span className="text-slate-900 dark:text-white font-black">{formatDots(p.jumlahPostingan)} Unit</span>
                   </div>
                </div>
             </div>
           ))}
-          {postinganList.length === 0 && (
-             <div className="col-span-full py-20 text-center space-y-4 bg-slate-50 dark:bg-slate-900/50 rounded-[3rem] border-2 border-dashed dark:border-slate-800">
-                <Video className="w-12 h-12 text-slate-200 mx-auto" />
-                <p className="text-slate-400 font-bold italic">Belum ada postingan yang dicatat.</p>
-             </div>
-          )}
         </div>
 
         {/* Modal Postingan */}
         {isModalOpen && currentView === 'TALENT_REPORTS' && (
            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
              <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md" onClick={closeModal}></div>
-             <div className="bg-white dark:bg-slate-900 w-full max-md rounded-[3rem] p-10 relative border dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
+             <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[3rem] p-10 relative border dark:border-slate-800 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-2xl font-black dark:text-white tracking-tight">{editingItem ? 'Edit Postingan' : 'Input Postingan'}</h3>
                   <button onClick={closeModal} className="p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-full transition-all"><X className="w-6 h-6" /></button>
                 </div>
                 
                 <form onSubmit={handleSaveReport} className="space-y-6">
+                   <div className="space-y-2">
+                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Foto Produk</label>
+                     <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-2 border-dashed dark:border-slate-800 border-slate-200 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-800/50 group">
+                        {previewUrl ? (
+                          <>
+                            <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                               <button type="button" onClick={() => { setSelectedFile(null); setPreviewUrl(''); }} className="bg-white text-red-500 p-2 rounded-full"><X className="w-5 h-5" /></button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center p-4">
+                             <ImageIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                             <p className="text-[10px] font-black text-slate-400 uppercase">Klik untuk upload foto</p>
+                             <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+                          </div>
+                        )}
+                     </div>
+                   </div>
+
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Pilih Talent</label>
                      <select required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm cursor-pointer" value={reportForm.talentId} onChange={e => setReportForm({...reportForm, talentId: e.target.value, namaAkunTalent: ''})}>
@@ -717,7 +746,7 @@ const TalentManagement: React.FC<TalentManagementProps> = ({ activeProfileId, ac
                    </div>
                    <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-400 ml-1 tracking-widest">Jumlah Postingan</label>
-                     <input type="number" min="1" max="10" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={reportForm.jumlahPostingan} onChange={e => updateLinkInputs(parseInt(e.target.value) || 1)} />
+                     <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 dark:bg-slate-800 dark:border-slate-700 dark:text-white outline-none font-bold text-sm" value={formatDots(reportForm.jumlahPostingan)} onChange={e => updateLinkInputs(parseDots(e.target.value) || 1)} />
                    </div>
                    
                    <div className="space-y-3">

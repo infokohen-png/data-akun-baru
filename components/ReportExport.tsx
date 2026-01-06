@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Sale, Product, Shop } from '../types';
 import { 
-  FileText, Download, Printer, Table, Loader2, Calendar, 
-  Store, Package, ShoppingCart, ChevronRight
+  FileText, Table, Loader2, Github, Save, CheckCircle2, AlertCircle, 
+  Printer, ShoppingCart, Package, Store, ChevronRight, MessageSquare, RefreshCw
 } from 'lucide-react';
 
 interface ReportExportProps {
@@ -17,29 +16,52 @@ const ReportExport: React.FC<ReportExportProps> = ({ activeProfileId, activeProf
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [exportType, setExportType] = useState<'SALES' | 'PRODUCTS' | 'SHOPS'>('SALES');
+  const [exportType, setExportType] = useState<'SALES' | 'PRODUCTS' | 'SHOPS' | 'GITHUB'>('SALES');
 
-  // Helper to convert data to CSV and download
+  // GitHub Configuration
+  const [ghToken, setGhToken] = useState(() => localStorage.getItem('gh_token') || '');
+  const [ghRepo, setGhRepo] = useState(() => localStorage.getItem('gh_repo') || '');
+  const [ghOwner, setGhOwner] = useState(() => localStorage.getItem('gh_owner') || '');
+  const [commitMessage, setCommitMessage] = useState('');
+  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+
+  // Statistik untuk Pesan Komit
+  const [counts, setCounts] = useState({ shops: 0, products: 0, sales: 0 });
+
+  // 1. Pantau jumlah data secara real-time untuk mengisi pesan komit
+  useEffect(() => {
+    if (!activeProfileId) return;
+
+    const qShops = query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId));
+    const qProds = query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId));
+    const qSales = query(collection(db, 'PENJUALAN'), where('profileId', '==', activeProfileId));
+
+    const unsubShops = onSnapshot(qShops, (s) => setCounts(prev => ({ ...prev, shops: s.size })));
+    const unsubProds = onSnapshot(qProds, (s) => setCounts(prev => ({ ...prev, products: s.size })));
+    const unsubSales = onSnapshot(qSales, (s) => setCounts(prev => ({ ...prev, sales: s.size })));
+
+    return () => { unsubShops(); unsubProds(); unsubSales(); };
+  }, [activeProfileId]);
+
+  // 2. Update Pesan Komit Otomatis setiap kali jumlah data berubah
+  useEffect(() => {
+    const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const date = new Date().toLocaleDateString('id-ID');
+    const autoMsg = `Backup ${activeProfileName}: ${counts.shops} Toko, ${counts.products} Produk, ${counts.sales} Penjualan [${date} ${time}]`;
+    setCommitMessage(autoMsg);
+  }, [counts, activeProfileName, exportType]);
+
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
       alert("Tidak ada data untuk diekspor.");
       return;
     }
-
     const headers = Object.keys(data[0]);
     const csvRows = [
-      headers.join(','), // Header row
-      ...data.map(row => 
-        headers.map(header => {
-          const val = row[header];
-          // Handle values that might contain commas
-          const escaped = ('' + val).replace(/"/g, '""');
-          return `"${escaped}"`;
-        }).join(',')
-      )
+      headers.join(','),
+      ...data.map(row => headers.map(header => `"${('' + row[header]).replace(/"/g, '""')}"`).join(','))
     ];
-
-    const csvContent = "\uFEFF" + csvRows.join('\n'); // Add BOM for Excel UTF-8
+    const csvContent = "\uFEFF" + csvRows.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -50,90 +72,135 @@ const ReportExport: React.FC<ReportExportProps> = ({ activeProfileId, activeProf
     document.body.removeChild(link);
   };
 
+  const handleGitHubSync = async () => {
+    if (!ghToken || !ghRepo || !ghOwner) {
+      setSyncStatus({ type: 'error', message: 'Config GitHub (Token/Owner/Repo) kosong!' });
+      return;
+    }
+
+    setLoading(true);
+    setSyncStatus({ type: null, message: '' });
+    
+    localStorage.setItem('gh_token', ghToken);
+    localStorage.setItem('gh_repo', ghRepo);
+    localStorage.setItem('gh_owner', ghOwner);
+
+    try {
+      const qShops = await getDocs(query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId)));
+      const qProds = await getDocs(query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId)));
+      const qSales = await getDocs(query(collection(db, 'PENJUALAN'), where('profileId', '==', activeProfileId)));
+      const qContents = await getDocs(query(collection(db, 'KONTEN'), where('profileId', '==', activeProfileId)));
+
+      const fullData = {
+        profileName: activeProfileName,
+        profileId: activeProfileId,
+        syncTimestamp: new Date().toISOString(),
+        summary: counts,
+        data: {
+          shops: qShops.docs.map(d => ({ id: d.id, ...d.data() })),
+          products: qProds.docs.map(d => ({ id: d.id, ...d.data() })),
+          sales: qSales.docs.map(d => ({ id: d.id, ...d.data() })),
+          contents: qContents.docs.map(d => ({ id: d.id, ...d.data() }))
+        }
+      };
+
+      const path = `backups/bms_data_${activeProfileId}.json`;
+      const url = `https://api.github.com/repos/${ghOwner}/${ghRepo}/contents/${path}`;
+      
+      let sha = null;
+      try {
+        const getRes = await fetch(url, {
+          headers: { 'Authorization': `token ${ghToken}`, 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (getRes.status === 200) {
+          const fileData = await getRes.json();
+          sha = fileData.sha;
+        }
+      } catch (e) {}
+
+      const utf8String = unescape(encodeURIComponent(JSON.stringify(fullData, null, 2)));
+      const base64Content = btoa(utf8String);
+
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `token ${ghToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: commitMessage || `Cloud Backup: ${activeProfileName}`,
+          content: base64Content,
+          sha: sha || undefined
+        })
+      });
+
+      if (putRes.ok) {
+        setSyncStatus({ type: 'success', message: 'Sinkronisasi Cloud Berhasil!' });
+      } else {
+        const errJson = await putRes.json();
+        setSyncStatus({ type: 'error', message: `GitHub Error: ${errJson.message}` });
+      }
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: `Gagal Koneksi: ${err.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExportCSV = async () => {
     setLoading(true);
     try {
       if (exportType === 'SALES') {
         const q = query(collection(db, 'PENJUALAN'), where('profileId', '==', activeProfileId));
         const snap = await getDocs(q);
-        const rawData = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-        
-        const filtered = rawData.filter(s => {
-          const sDate = s.tanggal?.toDate ? s.tanggal.toDate() : null;
-          const matchesStart = !startDate || (sDate && sDate >= new Date(startDate));
-          const matchesEnd = !endDate || (sDate && sDate <= new Date(endDate + 'T23:59:59'));
-          return matchesStart && matchesEnd;
-        }).map(s => ({
-          Tanggal: s.tanggal?.toDate ? s.tanggal.toDate().toLocaleDateString('id-ID') : '-',
-          Toko: s.namaToko,
-          Produk: s.namaProduk,
-          Jumlah: s.jumlah,
-          Omset: s.totalOmset
-        }));
-        
-        downloadCSV(filtered, `Laporan_Penjualan_${activeProfileName.replace(/\s+/g, '_')}`);
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any))
+          .filter(s => {
+            const sDate = s.tanggal?.toDate ? s.tanggal.toDate() : null;
+            return (!startDate || (sDate && sDate >= new Date(startDate))) && (!endDate || (sDate && sDate <= new Date(endDate + 'T23:59:59')));
+          }).map(s => ({
+            Tanggal: s.tanggal?.toDate ? s.tanggal.toDate().toLocaleDateString('id-ID') : '-',
+            Toko: s.namaToko,
+            Produk: s.namaProduk,
+            Qty: s.jumlah,
+            Total: s.totalOmset
+          }));
+        downloadCSV(data, `Sales_${activeProfileName.replace(/\s+/g, '_')}`);
       } else if (exportType === 'PRODUCTS') {
-        const q = query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId));
-        const snap = await getDocs(q);
-        const data = snap.docs.map(d => {
-          const p = d.data();
-          return {
-            Toko: p.namaToko,
-            Nama_Produk: p.namaProduk,
-            Kategori: p.kategori,
-            Harga: p.hargaJual,
-            Link: p.linkProduk || '-'
-          };
-        });
-        downloadCSV(data, `Daftar_Produk_${activeProfileName.replace(/\s+/g, '_')}`);
-      } else {
-        const q = query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId));
-        const snap = await getDocs(q);
-        const data = snap.docs.map(d => {
-          const s = d.data();
-          return {
-            Nama_Toko: s.nama,
-            Asal_Toko: s.asalToko,
-            Awal_Promosi: s.awalPromosi,
-            Link: s.linkToko
-          };
-        });
-        downloadCSV(data, `Daftar_Toko_${activeProfileName.replace(/\s+/g, '_')}`);
+        const snap = await getDocs(query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId)));
+        downloadCSV(snap.docs.map(d => ({ Produk: d.data().namaProduk, Toko: d.data().namaToko, Harga: d.data().hargaJual })), `Produk_${activeProfileName.replace(/\s+/g, '_')}`);
+      } else if (exportType === 'SHOPS') {
+        const snap = await getDocs(query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId)));
+        downloadCSV(snap.docs.map(d => ({ Nama: d.data().nama, Asal: d.data().asalToko, Promosi: d.data().awalPromosi })), `Toko_${activeProfileName.replace(/\s+/g, '_')}`);
       }
-    } catch (err) {
-      alert("Gagal mengekspor data.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert("Ekspor gagal."); } finally { setLoading(false); }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col gap-2 print:hidden">
         <h2 className="text-2xl font-black dark:text-slate-100 text-slate-900 flex items-center gap-2">
-          <FileText className="w-6 h-6 text-indigo-600" /> Laporan & Ekspor Data
+          <FileText className="w-6 h-6 text-indigo-600" /> Laporan & Cloud Sync
         </h2>
-        <p className="dark:text-slate-400 text-slate-500 text-sm font-medium">Unduh data bisnis Anda dalam format Excel (CSV) atau cetak PDF.</p>
+        <p className="dark:text-slate-400 text-slate-500 text-sm font-medium">Backup otomatis ke GitHub Cloud atau Ekspor Excel.</p>
       </header>
 
-      {/* Control Card */}
-      <div className="dark:bg-slate-900 bg-white p-6 rounded-3xl border dark:border-slate-800 border-slate-100 shadow-sm space-y-6 print:hidden">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Category Picker */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Kategori Data</label>
+      <div className="dark:bg-slate-900 bg-white p-6 rounded-[2.5rem] border dark:border-slate-800 border-slate-100 shadow-sm space-y-6 print:hidden">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="space-y-2 col-span-1">
+            <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Pilih Mode</label>
             <div className="flex flex-col gap-2">
               {[
                 { id: 'SALES', label: 'Penjualan', icon: ShoppingCart },
                 { id: 'PRODUCTS', label: 'Produk', icon: Package },
-                { id: 'SHOPS', label: 'Toko', icon: Store }
+                { id: 'SHOPS', label: 'Toko', icon: Store },
+                { id: 'GITHUB', label: 'GitHub Sync', icon: Github }
               ].map(btn => (
                 <button
                   key={btn.id}
                   onClick={() => setExportType(btn.id as any)}
-                  className={`flex items-center justify-between px-4 py-3 rounded-2xl border transition-all font-bold text-sm ${
+                  className={`flex items-center justify-between px-4 py-3.5 rounded-2xl border transition-all font-bold text-xs ${
                     exportType === btn.id 
-                    ? 'border-indigo-600 bg-indigo-600/10 text-indigo-600' 
+                    ? 'border-indigo-600 bg-indigo-600/10 text-indigo-600 shadow-sm shadow-indigo-500/10' 
                     : 'dark:border-slate-800 border-slate-100 dark:text-slate-400 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
@@ -147,93 +214,92 @@ const ReportExport: React.FC<ReportExportProps> = ({ activeProfileId, activeProf
             </div>
           </div>
 
-          {/* Date Filter (Only for Sales) */}
-          <div className={`space-y-2 transition-opacity ${exportType === 'SALES' ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-            <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Periode (Opsional)</label>
-            <div className="space-y-3">
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="date" 
-                  value={startDate} 
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-9 pr-4 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-xs font-bold dark:text-slate-100" 
-                />
-              </div>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="date" 
-                  value={endDate} 
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-9 pr-4 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-xs font-bold dark:text-slate-100" 
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="space-y-3 flex flex-col justify-end">
-            <button 
-              onClick={handleExportCSV}
-              disabled={loading}
-              className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/10 active:scale-[0.98] disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Table className="w-5 h-5" /> UNDUH EXCEL (CSV)</>}
-            </button>
-            <button 
-              onClick={() => window.print()}
-              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/10 active:scale-[0.98]"
-            >
-              <Printer className="w-5 h-5" /> CETAK / PDF
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Info Card */}
-      <div className="p-5 dark:bg-amber-900/10 bg-amber-50 rounded-2xl border dark:border-amber-900/20 border-amber-100 print:hidden">
-        <p className="text-[11px] font-bold text-amber-700 dark:text-amber-500 flex items-start gap-2">
-          💡 Tips: Gunakan format CSV untuk membuka data di Excel atau Google Sheets. Gunakan tombol Cetak untuk menyimpan ringkasan tampilan dalam format PDF.
-        </p>
-      </div>
-
-      {/* PRINT VERSION (Hidden by CSS normally) */}
-      <div className="hidden print:block bg-white text-black p-10 font-sans">
-        <div className="border-b-4 border-black pb-4 mb-8 flex justify-between items-end">
-          <div>
-            <h1 className="text-4xl font-black tracking-tighter uppercase">PT BMS</h1>
-            <p className="text-sm font-bold tracking-widest text-slate-500">LAPORAN MANAJEMEN DATA</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-black uppercase">Akun Bisnis</p>
-            <p className="text-lg font-bold">{activeProfileName}</p>
-            <p className="text-[10px] text-slate-500">{new Date().toLocaleDateString('id-ID', { dateStyle: 'full' })}</p>
-          </div>
-        </div>
-
-        <div className="space-y-8">
-           <div className="p-4 bg-slate-100 rounded-lg">
-              <h2 className="text-xl font-bold mb-2">Ringkasan Laporan</h2>
-              <p className="text-sm">Laporan ini dibuat secara otomatis melalui sistem Dashboard PT BMS. Data yang tercantum adalah data real-time per tanggal cetak.</p>
-           </div>
-           
-           <div className="grid grid-cols-2 gap-4">
-              <div className="border p-4 rounded-lg">
-                 <p className="text-xs font-bold text-slate-500 uppercase">Kategori Laporan</p>
-                 <p className="text-lg font-bold">{exportType === 'SALES' ? 'Rekap Penjualan' : exportType === 'PRODUCTS' ? 'Daftar Produk' : 'Katalog Toko'}</p>
-              </div>
-              {startDate && (
-                <div className="border p-4 rounded-lg">
-                   <p className="text-xs font-bold text-slate-500 uppercase">Periode</p>
-                   <p className="text-lg font-bold">{startDate} s/d {endDate || 'Hari Ini'}</p>
+          <div className="col-span-1 md:col-span-3">
+            {exportType === 'GITHUB' ? (
+              <div className="space-y-6 animate-in slide-in-from-right-4">
+                <div className="p-5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center gap-4">
+                   <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><Github /></div>
+                   <div>
+                     <h4 className="font-black text-indigo-600 text-sm">Automated Backup System</h4>
+                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Pesan komit di bawah ini terisi otomatis berdasarkan jumlah data terbaru Anda di database.</p>
+                   </div>
                 </div>
-              )}
-           </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">GitHub Token (Classic)</label>
+                    <input type="password" placeholder="ghp_xxxx..." value={ghToken} onChange={e => setGhToken(e.target.value)} className="w-full px-4 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-xs font-bold dark:text-white outline-none focus:border-indigo-500" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                      <input placeholder="Owner" value={ghOwner} onChange={e => setGhOwner(e.target.value)} className="w-full px-4 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-xs font-bold dark:text-white outline-none" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Repository</label>
+                      <input placeholder="Repo" value={ghRepo} onChange={e => setGhRepo(e.target.value)} className="w-full px-4 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-xs font-bold dark:text-white outline-none" />
+                    </div>
+                  </div>
+                </div>
 
-           <div className="pt-20 text-center border-t">
-              <p className="text-xs italic text-slate-400">Dokumen ini sah dihasilkan secara digital oleh PT BMS Dashboard.</p>
-           </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <MessageSquare className="w-3 h-3 text-indigo-500" /> Commit Message (Otomatis)
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      value={commitMessage} 
+                      onChange={e => setCommitMessage(e.target.value)}
+                      className="w-full px-4 py-4 dark:bg-slate-800 bg-slate-50 border-2 border-indigo-100 dark:border-indigo-900/50 rounded-xl text-xs font-black text-indigo-600 dark:text-indigo-400 outline-none focus:border-indigo-500 transition-all" 
+                      placeholder="Menghitung data..."
+                    />
+                    <button 
+                      onClick={() => setCounts({ ...counts })} // Triger re-render message
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {syncStatus.type && (
+                  <div className={`p-4 rounded-xl flex items-center gap-3 text-xs font-bold border animate-in fade-in ${syncStatus.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}`}>
+                    {syncStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                    {syncStatus.message}
+                  </div>
+                )}
+
+                <button 
+                  onClick={handleGitHubSync}
+                  disabled={loading}
+                  className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> CADANGKAN SEKARANG</>}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6 animate-in slide-in-from-right-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className={`space-y-2 ${exportType === 'SALES' ? 'opacity-100' : 'opacity-30'}`}>
+                      <label className="text-[10px] font-black dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Rentang Tanggal</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-3 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-[10px] font-bold dark:text-white" />
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-3 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl text-[10px] font-bold dark:text-white" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col justify-end gap-3">
+                      <button onClick={handleExportCSV} disabled={loading} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-3 hover:bg-emerald-700 shadow-lg transition-all active:scale-95">
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Table className="w-4 h-4" /> DOWNLOAD CSV</>}
+                      </button>
+                      <button onClick={() => window.print()} className="w-full border-2 dark:border-slate-800 border-slate-100 dark:text-slate-300 text-slate-600 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-95">
+                        <Printer className="w-4 h-4" /> CETAK PDF
+                      </button>
+                    </div>
+                 </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

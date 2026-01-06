@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, getDoc, doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
@@ -16,12 +16,13 @@ import ReportExport from './components/ReportExport';
 import ProjectSelector from './components/ProjectSelector';
 import TalentManagement from './components/TalentManagement';
 import AppPortal from './components/AppPortal';
-import { ViewState, AccountProfile, AppMode } from './types';
+import { ViewState, AccountProfile, AppMode, UserPermission } from './types';
 import { Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState<UserPermission | null>(null);
   const [appMode, setAppMode] = useState<AppMode | null>(null);
   const [activeProfile, setActiveProfile] = useState<AccountProfile | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('DASHBOARD');
@@ -42,20 +43,75 @@ const App: React.FC = () => {
   }, [isDarkMode]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      if (!currentUser) {
-        setLoading(false);
+      if (currentUser) {
+        const permRef = doc(db, 'USER_PERMISSIONS', currentUser.uid);
+        const permSnap = await getDoc(permRef);
+        
+        let userPerm: UserPermission;
+
+        // Otorisasi Ketat Berbasis Email
+        const isMaster = currentUser.email === 'hen@gmail.com';
+        const isTalentOnly = currentUser.email === 'talent@gmail.com';
+        const isBusinessOnly = currentUser.email === 'akun@gmail.com';
+
+        if (permSnap.exists()) {
+          userPerm = permSnap.data() as UserPermission;
+          if (isMaster) {
+            userPerm.allowedModes = ['BUSINESS', 'TALENT'];
+            userPerm.role = 'ADMIN';
+          } else if (isTalentOnly) {
+            userPerm.allowedModes = ['TALENT'];
+            userPerm.role = 'TALENT_STAFF';
+          } else if (isBusinessOnly) {
+            userPerm.allowedModes = ['BUSINESS'];
+            userPerm.role = 'BUSINESS_STAFF';
+          }
+        } else {
+          let allowed: AppMode[] = ['BUSINESS'];
+          let role: any = 'USER';
+          
+          if (isMaster) {
+            allowed = ['BUSINESS', 'TALENT'];
+            role = 'ADMIN';
+          } else if (isTalentOnly) {
+            allowed = ['TALENT'];
+            role = 'TALENT_STAFF';
+          } else if (isBusinessOnly) {
+            allowed = ['BUSINESS'];
+            role = 'BUSINESS_STAFF';
+          }
+
+          userPerm = {
+            email: currentUser.email || '',
+            allowedModes: allowed,
+            role: role
+          };
+          await setDoc(permRef, userPerm);
+        }
+        
+        setPermissions(userPerm);
+      } else {
+        setPermissions(null);
         setProfiles([]);
         setActiveProfile(null);
         setAppMode(null);
       }
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!user || !appMode) return;
+    
+    if (permissions && !permissions.allowedModes.includes(appMode)) {
+      alert("Akses Dibatasi: Anda tidak memiliki izin untuk masuk ke workspace ini.");
+      setAppMode(null);
+      return;
+    }
+
     setLoading(true);
     const q = query(
       collection(db, 'AKUN'), 
@@ -66,66 +122,57 @@ const App: React.FC = () => {
       const profileList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AccountProfile[];
       setProfiles(profileList);
       
-      if (appMode === 'BUSINESS') {
-        const savedId = localStorage.getItem(`activeProfile_${user.uid}_${appMode}`);
-        const found = profileList.find(p => p.id === savedId);
-        if (found) {
-          setActiveProfile(found);
-          setCurrentView('DASHBOARD');
-        }
-      } 
-      else if (appMode === 'TALENT') {
-        if (profileList.length > 0) {
-          setActiveProfile(profileList[0]);
-          setCurrentView('TALENT_DASHBOARD');
-        } else {
-          const createDefaultTalent = async () => {
-            try {
-              await addDoc(collection(db, 'AKUN'), {
-                userId: user.uid,
-                nama: 'Talent Workspace',
-                appMode: 'TALENT',
-                createdAt: serverTimestamp()
-              });
-            } catch (e) {
-              console.error("Error creating default talent profile", e);
-            }
-          };
-          createDefaultTalent();
-        }
+      const savedId = localStorage.getItem(`activeProfile_${user.uid}_${appMode}`);
+      const found = profileList.find(p => p.id === savedId);
+      
+      if (found) {
+        setActiveProfile(found);
+      } else if (appMode === 'TALENT') {
+         if (profileList.length > 0) {
+            setActiveProfile(profileList[0]);
+         } else {
+            const createDefault = async () => {
+              try {
+                await addDoc(collection(db, 'AKUN'), {
+                  userId: user.uid,
+                  nama: 'Talent Workspace',
+                  appMode: 'TALENT',
+                  createdAt: serverTimestamp()
+                });
+              } catch (e) { console.error(e); }
+            };
+            createDefault();
+         }
       }
       
       setLoading(false);
     });
     return () => unsubProfiles();
-  }, [user, appMode]);
+  }, [user, appMode, permissions]);
+
+  useEffect(() => {
+    if (activeProfile && appMode) {
+      if (appMode === 'BUSINESS') setCurrentView('DASHBOARD');
+      else if (appMode === 'TALENT') setCurrentView('TALENT_DASHBOARD');
+    }
+  }, [activeProfile, appMode]);
 
   const handleSelectProfile = (profile: AccountProfile) => {
     setActiveProfile(profile);
     localStorage.setItem(`activeProfile_${user?.uid}_${appMode}`, profile.id);
-    setCurrentView(appMode === 'BUSINESS' ? 'DASHBOARD' : 'TALENT_DASHBOARD');
   };
 
   const handleExitProject = () => {
     setActiveProfile(null);
-    if (appMode === 'TALENT') {
-      setAppMode(null);
-    }
-  };
-
-  const handleExitAppMode = () => {
-    setActiveProfile(null);
     setAppMode(null);
   };
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
   if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <Loader2 className="h-12 w-12 text-indigo-600 animate-spin" />
+        <Loader2 className="h-12 w-12 text-amber-500 animate-spin" />
       </div>
     );
   }
@@ -133,7 +180,14 @@ const App: React.FC = () => {
   if (!user) return <AuthScreen />;
 
   if (!appMode) {
-    return <AppPortal onSelect={setAppMode} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />;
+    return (
+      <AppPortal 
+        onSelect={setAppMode} 
+        isDarkMode={isDarkMode} 
+        toggleTheme={toggleTheme} 
+        allowedModes={permissions?.allowedModes || []} 
+      />
+    );
   }
 
   if (!activeProfile && appMode === 'BUSINESS') {
@@ -141,22 +195,10 @@ const App: React.FC = () => {
       <ProjectSelector 
         profiles={profiles} 
         onSelect={handleSelectProfile}
-        onBack={handleExitAppMode}
+        onBack={() => setAppMode(null)}
         isDarkMode={isDarkMode}
         appMode={appMode}
       />
-    );
-  }
-
-  if (!activeProfile && appMode === 'TALENT') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 gap-4 text-center p-6">
-        <Loader2 className="h-12 w-12 text-indigo-600 animate-spin" />
-        <div>
-          <h2 className="text-white font-bold text-xl">Menyiapkan Workspace Talent...</h2>
-          <p className="text-slate-400 text-sm mt-1">Hanya butuh waktu sekejap.</p>
-        </div>
-      </div>
     );
   }
 
@@ -177,15 +219,8 @@ const App: React.FC = () => {
       case 'TALENT_CONTENT':
       case 'TALENT_DASHBOARD':
       case 'TALENT_KPI':
-        return (
-          <TalentManagement 
-            activeProfileId={profileId} 
-            activeProjectId={profileId} 
-            currentView={currentView} 
-            setView={setCurrentView} 
-          />
-        );
-      default: return appMode === 'BUSINESS' ? <Dashboard activeProfileId={profileId} /> : <TalentManagement activeProfileId={profileId} activeProjectId={profileId} currentView="TALENT_DASHBOARD" setView={setCurrentView} />;
+        return <TalentManagement activeProfileId={profileId} activeProjectId={profileId} currentView={currentView} setView={setCurrentView} />;
+      default: return null;
     }
   };
 

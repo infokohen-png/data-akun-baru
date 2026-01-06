@@ -7,8 +7,7 @@ import {
 import { db, auth } from '../firebase';
 import { Sale, Product, Shop } from '../types';
 import { 
-  Plus, Trash2, Edit3, X, Save, TrendingUp, Search, Loader2, Calendar, ShoppingBag, Store, Package,
-  Download, Table
+  Plus, Trash2, Edit3, X, TrendingUp, Search, Loader2, Calendar, Store, Table
 } from 'lucide-react';
 
 interface SalesListProps {
@@ -22,8 +21,6 @@ const SalesList: React.FC<SalesListProps> = ({ activeProfileId }) => {
   const [loading, setLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterShopId, setFilterShopId] = useState('');
-  const [filterProductId, setFilterProductId] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
 
@@ -36,69 +33,65 @@ const SalesList: React.FC<SalesListProps> = ({ activeProfileId }) => {
     tanggal: new Date().toISOString().split('T')[0]
   });
 
+  // Helper Pemisah Ribuan (Auto-Dot) - Versi Stabil
+  const formatDots = (val: number | string) => {
+    if (val === undefined || val === null || val === '') return '';
+    const stringVal = val.toString().replace(/\D/g, '');
+    if (stringVal === '') return '';
+    return stringVal.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const parseDots = (val: string) => {
+    const clean = val.replace(/\./g, '');
+    return clean === '' ? 0 : parseInt(clean, 10);
+  };
+
   useEffect(() => {
     if (!activeProfileId) return;
 
     const qShops = query(collection(db, 'NAMA TOKO'), where('profileId', '==', activeProfileId));
-    const unsubShops = onSnapshot(qShops, (snapshot) => {
-      setShops(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Shop[]);
-    });
+    const unsubShops = onSnapshot(qShops, (snapshot) => setShops(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Shop[]));
 
     const qProds = query(collection(db, 'NAMA PRODUK'), where('profileId', '==', activeProfileId));
-    const unsubProds = onSnapshot(qProds, (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[]);
-    });
+    const unsubProds = onSnapshot(qProds, (snapshot) => setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[]));
 
     const qSales = query(collection(db, 'PENJUALAN'), where('profileId', '==', activeProfileId));
     const unsubSales = onSnapshot(qSales, (snapshot) => {
-      const salesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Sale[];
-      const sortedSales = salesData.sort((a, b) => {
-        const timeA = a.tanggal?.toMillis ? a.tanggal.toMillis() : 0;
-        const timeB = b.tanggal?.toMillis ? b.tanggal.toMillis() : 0;
-        return timeB - timeA;
-      });
-      setSales(sortedSales);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Sale[];
+      setSales(data.sort((a, b) => (b.tanggal?.toMillis?.() || 0) - (a.tanggal?.toMillis?.() || 0)));
       setLoading(false);
     });
 
     return () => { unsubShops(); unsubProds(); unsubSales(); };
   }, [activeProfileId]);
 
-  const formatNumberWithDots = (val: number | string) => {
-    if (!val && val !== 0) return '';
-    const stringVal = val.toString().replace(/\D/g, '');
-    return stringVal.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  };
-
-  const parseDotsToNumber = (val: string) => parseInt(val.replace(/\./g, ''), 10) || 0;
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = auth.currentUser;
-    if (!user || !activeProfileId) return;
+    if (!auth.currentUser || !activeProfileId) return;
 
     const shop = shops.find(s => s.id === formData.tokoId);
     const product = products.find(p => p.id === formData.produkId);
-    if (!shop || !product) { alert("Harap pilih toko dan produk."); return; }
+    if (!shop || !product) { alert("Pilih toko dan produk."); return; }
     
     setIsSaving(true);
     try {
       const payload = {
-        userId: user.uid,
+        userId: auth.currentUser.uid,
         profileId: activeProfileId,
         tokoId: shop.id, namaToko: shop.nama, 
         produkId: product.id, namaProduk: product.namaProduk, 
-        jumlah: formData.jumlah, totalOmset: formData.totalOmset, 
+        jumlah: formData.jumlah, 
+        totalOmset: formData.totalOmset, 
         tanggal: Timestamp.fromDate(new Date(formData.tanggal))
       };
       
       if (editingSale) {
-        await updateDoc(doc(db, 'PENJUALAN', editingSale.id), payload);
+        await updateDoc(doc(db, 'PENJUALAN', editingSale.id), { ...payload, updatedAt: serverTimestamp() });
       } else {
         await addDoc(collection(db, 'PENJUALAN'), { ...payload, createdAt: serverTimestamp() });
       }
       closeModal();
-    } catch (err) { alert("Gagal menyimpan data."); }
+    } catch (err) { alert("Gagal menyimpan."); }
     finally { setIsSaving(false); }
   };
 
@@ -110,229 +103,58 @@ const SalesList: React.FC<SalesListProps> = ({ activeProfileId }) => {
   const filteredSales = sales.filter(s => {
     const sDate = s.tanggal?.toDate ? s.tanggal.toDate() : null;
     const matchesSearch = (s.namaProduk || '').toLowerCase().includes(searchTerm.toLowerCase()) || (s.namaToko || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesShop = !filterShopId || s.tokoId === filterShopId;
-    const matchesProd = !filterProductId || s.produkId === filterProductId;
     const matchesStart = !filterStartDate || (sDate && sDate >= new Date(filterStartDate));
     const matchesEnd = !filterEndDate || (sDate && sDate <= new Date(filterEndDate + 'T23:59:59'));
-    return matchesSearch && matchesShop && matchesProd && matchesStart && matchesEnd;
+    return matchesSearch && matchesStart && matchesEnd;
   });
 
-  const handleQuickExport = () => {
-    if (filteredSales.length === 0) return;
-    
-    const csvData = filteredSales.map(s => ({
-      Tanggal: s.tanggal?.toDate ? s.tanggal.toDate().toLocaleDateString('id-ID') : '-',
-      Toko: s.namaToko,
-      Produk: s.namaProduk,
-      Kuantitas: s.jumlah,
-      Omset: s.totalOmset
-    }));
+  const totalOmsetVal = filteredSales.reduce((acc, curr) => acc + (curr.totalOmset || 0), 0);
 
-    const headers = Object.keys(csvData[0]);
-    const csvRows = [
-      headers.join(','),
-      ...csvData.map(row => headers.map(h => `"${('' + row[h]).replace(/"/g, '""')}"`).join(','))
-    ];
-
-    const csvContent = "\uFEFF" + csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Export_Penjualan_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const totalOmsetAll = filteredSales.reduce((acc, curr) => acc + (curr.totalOmset || 0), 0);
-
-  if (loading) return (
-    <div className="h-[60vh] flex items-center justify-center">
-      <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-    </div>
-  );
+  if (loading) return <div className="h-[60vh] flex items-center justify-center"><Loader2 className="w-10 h-10 text-indigo-600 animate-spin" /></div>;
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in slide-in-from-bottom-4 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold dark:text-slate-100 text-slate-900">Rekap Penjualan</h2>
-          <p className="dark:text-slate-400 text-slate-500 text-sm mt-1 font-medium">Histori transaksi akun aktif.</p>
+          <h2 className="text-3xl font-black dark:text-white">Rekap Penjualan</h2>
+          <p className="text-slate-500 text-sm font-medium italic">Monitor arus kas masuk harian Anda.</p>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleQuickExport}
-            className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg active:scale-95 text-xs md:text-sm"
-          >
-            <Table className="w-4 h-4" /> Ekspor Excel
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg active:scale-95 text-xs md:text-sm">
-            <Plus className="w-5 h-5" /> Input Penjualan
-          </button>
-        </div>
-      </div>
-
-      <div className="dark:bg-slate-900 bg-white p-4 rounded-2xl border dark:border-slate-800 border-slate-200 shadow-sm space-y-4">
-        <div className="flex flex-wrap gap-3">
-          <div className="flex-1 min-w-[200px] relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Cari transaksi..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-9 pr-4 py-2 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-colors" 
-            />
-          </div>
-          <div className="flex items-center gap-2 dark:bg-slate-800 bg-slate-50 border dark:border-slate-700 border-slate-200 rounded-xl px-3 py-2 transition-colors">
-            <Calendar className="w-4 h-4 text-slate-400" />
-            <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="bg-transparent text-xs outline-none dark:text-slate-100" />
-            <span className="text-slate-400">-</span>
-            <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="bg-transparent text-xs outline-none dark:text-slate-100" />
-          </div>
-        </div>
+        <button onClick={() => setIsModalOpen(true)} className="w-full md:w-auto bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-all uppercase tracking-widest">
+          <Plus className="w-5 h-5" /> Input Transaksi
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-indigo-600 p-6 rounded-3xl border border-transparent shadow-lg shadow-indigo-100/20 col-span-1 md:col-span-2 flex items-center gap-6 relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
-          <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-md"><TrendingUp className="w-8 h-8 text-white" /></div>
-          <div>
-            <p className="text-xs font-bold text-indigo-100 uppercase tracking-widest">Total Terfilter</p>
-            <p className="text-3xl font-black text-white">Rp {totalOmsetAll.toLocaleString('id-ID')}</p>
-          </div>
+        <div className="bg-indigo-600 p-8 rounded-[2.5rem] col-span-1 md:col-span-2 text-white shadow-xl relative overflow-hidden group">
+          <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">Total Omset Terfilter</p>
+          <p className="text-4xl font-black mt-2">Rp {formatDots(totalOmsetVal)}</p>
+        </div>
+        
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border dark:border-slate-800 space-y-3 shadow-sm">
+           <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input type="text" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-xl text-xs outline-none border border-transparent focus:border-indigo-500" />
+           </div>
+           <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="w-full px-2 py-2 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-lg text-[10px] outline-none" />
+              <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="w-full px-2 py-2 bg-slate-50 dark:bg-slate-800 dark:text-white rounded-lg text-[10px] outline-none" />
+           </div>
         </div>
       </div>
 
-      {/* Desktop Table */}
-      <div className="hidden md:block dark:bg-slate-900 bg-white rounded-3xl border dark:border-slate-800 border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="dark:bg-slate-800 bg-slate-50">
-            <tr>
-              <th className="px-6 py-4 text-xs font-bold dark:text-slate-400 text-slate-500 uppercase tracking-wider">Toko & Produk</th>
-              <th className="px-6 py-4 text-xs font-bold dark:text-slate-400 text-slate-500 uppercase tracking-wider text-center">Qty</th>
-              <th className="px-6 py-4 text-xs font-bold dark:text-slate-400 text-slate-500 uppercase tracking-wider">Total Omset</th>
-              <th className="px-6 py-4 text-xs font-bold dark:text-slate-400 text-slate-500 uppercase tracking-wider">Tanggal</th>
-              <th className="px-6 py-4 text-xs font-bold dark:text-slate-400 text-slate-500 uppercase tracking-wider text-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y dark:divide-slate-800 divide-slate-100">
-            {filteredSales.length > 0 ? filteredSales.map((sale) => (
-              <tr key={sale.id} className="dark:hover:bg-slate-800/50 hover:bg-slate-50/80 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <span className="font-bold dark:text-slate-100 text-slate-900">{sale.namaProduk}</span>
-                    <span className="text-[10px] uppercase font-bold text-indigo-500 tracking-wider">{sale.namaToko}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-center">
-                  <span className="dark:bg-indigo-900/30 dark:text-indigo-400 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-black">{sale.jumlah} PCS</span>
-                </td>
-                <td className="px-6 py-4 text-emerald-600 font-black">Rp {sale.totalOmset?.toLocaleString('id-ID')}</td>
-                <td className="px-6 py-4 dark:text-slate-500 text-slate-500 text-xs font-medium">
-                  {sale.tanggal?.toDate ? sale.tanggal.toDate().toLocaleDateString('id-ID') : '-'}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setEditingSale(sale); setFormData({ tokoId: sale.tokoId, produkId: sale.produkId, jumlah: sale.jumlah, totalOmset: sale.totalOmset, tanggal: sale.tanggal?.toDate ? sale.tanggal.toDate().toISOString().split('T')[0] : '' }); setIsModalOpen(true); }} className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 rounded-lg"><Edit3 className="w-4 h-4" /></button>
-                    <button onClick={async () => { if (window.confirm('Hapus transaksi ini?')) await deleteDoc(doc(db, 'PENJUALAN', sale.id)); }} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan={5} className="px-6 py-20 text-center dark:text-slate-500 text-slate-400 italic">Tidak ada data untuk filter ini.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Mobile Cards View */}
-      <div className="md:hidden space-y-4">
-        {filteredSales.length > 0 ? filteredSales.map((sale) => (
-          <div key={sale.id} className="dark:bg-slate-900 bg-white p-5 rounded-3xl border dark:border-slate-800 border-slate-100 shadow-sm space-y-4">
-            <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <h4 className="font-bold dark:text-slate-100 text-slate-900 leading-tight">{sale.namaProduk}</h4>
-                <div className="flex items-center gap-1.5 text-[10px] font-black text-indigo-500 uppercase tracking-widest">
-                  <Store className="w-3 h-3" /> {sale.namaToko}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredSales.map(sale => (
+          <div key={sale.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border dark:border-slate-800 shadow-sm hover:border-indigo-500 transition-all group">
+             <div className="flex justify-between items-start mb-4">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar className="w-3 h-3" /> {sale.tanggal?.toDate?.().toLocaleDateString('id-ID')}</span>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button onClick={() => { setEditingSale(sale); setFormData({ tokoId: sale.tokoId, produkId: sale.produkId, jumlah: sale.jumlah, totalOmset: sale.totalOmset, tanggal: sale.tanggal?.toDate?.().toISOString().split('T')[0] || '' }); setIsModalOpen(true); }} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg"><Edit3 className="w-4 h-4" /></button>
+                   <button onClick={async () => { if(confirm('Hapus transaksi ini?')) await deleteDoc(doc(db, 'PENJUALAN', sale.id)); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                 </div>
-              </div>
-              <span className="dark:bg-indigo-900/40 dark:text-indigo-400 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl text-[10px] font-black">
-                {sale.jumlah} PCS
-              </span>
-            </div>
-            
-            <div className="flex items-end justify-between pt-2 border-t dark:border-slate-800 border-slate-50">
-              <div className="space-y-0.5">
-                <p className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-tighter">Total Omset</p>
-                <p className="text-lg font-black text-emerald-600">Rp {sale.totalOmset?.toLocaleString('id-ID')}</p>
-              </div>
-              <p className="text-[10px] font-bold dark:text-slate-500 text-slate-400">{sale.tanggal?.toDate ? sale.tanggal.toDate().toLocaleDateString('id-ID') : '-'}</p>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button 
-                onClick={() => { setEditingSale(sale); setFormData({ tokoId: sale.tokoId, produkId: sale.produkId, jumlah: sale.jumlah, totalOmset: sale.totalOmset, tanggal: sale.tanggal?.toDate ? sale.tanggal.toDate().toISOString().split('T')[0] : '' }); setIsModalOpen(true); }}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600/10 text-indigo-600 font-bold text-xs flex items-center justify-center gap-2"
-              >
-                <Edit3 className="w-3.5 h-3.5" /> Edit
-              </button>
-              <button 
-                onClick={async () => { if (window.confirm('Hapus transaksi ini?')) await deleteDoc(doc(db, 'PENJUALAN', sale.id)); }}
-                className="flex-1 py-2.5 rounded-xl bg-red-500/10 text-red-500 font-bold text-xs flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Hapus
-              </button>
-            </div>
-          </div>
-        )) : (
-          <div className="py-20 text-center dark:text-slate-600 text-slate-400 italic bg-white dark:bg-slate-900 rounded-3xl border border-dashed dark:border-slate-800">
-            Belum ada transaksi tercatat.
-          </div>
-        )}
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeModal}></div>
-          <div className={`w-full max-w-md rounded-3xl shadow-2xl relative z-10 overflow-hidden ${editingSale ? 'animate-in zoom-in-95' : 'animate-in slide-in-from-bottom-10'} duration-300 transition-colors ${editingSale && auth.currentUser ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'bg-slate-900' : 'bg-white') : 'bg-white dark:bg-slate-900'}`}>
-            <div className={`px-8 py-6 border-b flex items-center justify-between ${editingSale && auth.currentUser ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-100') : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'}`}>
-              <h3 className="text-xl font-bold dark:text-slate-100 text-slate-900">{editingSale ? 'Update Penjualan' : 'Input Penjualan'}</h3>
-              <button onClick={closeModal} className="dark:text-slate-500 text-slate-400 hover:text-red-500 transition-colors"><X className="w-6 h-6" /></button>
-            </div>
-            <form onSubmit={handleSave} className="p-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Pilih Toko</label>
-                <select required className="w-full px-4 py-3 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none" value={formData.tokoId} onChange={(e) => setFormData({ ...formData, tokoId: e.target.value, produkId: '' })}><option value="">Pilih Toko...</option>{shops.map(s => <option key={s.id} value={s.id}>{s.nama}</option>)}</select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Pilih Produk</label>
-                <select required disabled={!formData.tokoId} className="w-full px-4 py-3 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none disabled:opacity-50" value={formData.produkId} onChange={(e) => setFormData({ ...formData, produkId: e.target.value })}><option value="">Pilih Produk...</option>{products.filter(p => p.namaTokoId === formData.tokoId).map(p => <option key={p.id} value={p.id}>{p.namaProduk}</option>)}</select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Kuantitas</label>
-                  <input type="number" min="1" required className="w-full px-4 py-3 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none" value={formData.jumlah} onChange={(e) => setFormData({ ...formData, jumlah: Number(e.target.value) })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Total Omset</label>
-                  <input type="text" required className="w-full px-4 py-3 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none" value={formatNumberWithDots(formData.totalOmset)} onChange={(e) => setFormData({ ...formData, totalOmset: parseDotsToNumber(e.target.value) })} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold dark:text-slate-500 text-slate-400 uppercase tracking-widest ml-1">Tanggal Transaksi</label>
-                <input type="date" required className="w-full px-4 py-3 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none" value={formData.tanggal} onChange={(e) => setFormData({ ...formData, tanggal: e.target.value })} />
-              </div>
-              <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-all shadow-lg shadow-indigo-500/20">{isSaving ? <Loader2 className="animate-spin mx-auto w-5 h-5" /> : (editingSale ? 'Simpan Perubahan' : 'Input Transaksi')}</button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default SalesList;
+             </div>
+             <div className="mb-4">
+                <h4 className="text-sm font-black dark:text-white leading-tight mb-1">{sale.namaProduk}</h4>
+                <p className="text-[10px] font-black text-indigo-500 uppercase flex items-center gap-1"><Store className="w-3 h-3" /> {sale.namaToko}</p>
+             </div>
+             <div className="flex items-center justify-between pt-4 border-t dark:border
